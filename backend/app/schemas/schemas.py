@@ -54,6 +54,18 @@ class HealthcareVisitCreate(BaseModel):
     status: str = "CONFIRMED" # Only submitted after explicit confirmation gate
     transcript_snippet: Optional[str] = None
 
+class HealthcareVisitUpdate(BaseModel):
+    visit_type: Optional[str] = None
+    weight_kg: Optional[float] = None
+    vaccinations_given: Optional[Dict[str, str]] = None
+    health_observations: Optional[str] = None
+    next_visit_date: Optional[str] = None
+    house_number: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_address: Optional[str] = None
+
+
 class HealthcareVisitResponse(BaseModel):
     id: int
     beneficiary_id: int

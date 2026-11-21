@@ -5,6 +5,7 @@ import { LandingPage } from './pages/LandingPage';
 import { VoiceAssistantPage } from './pages/VoiceAssistantPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FollowUpsPage } from './pages/FollowUpsPage';
+import { BeneficiaryRecordsPage } from './pages/BeneficiaryRecordsPage';
 import { ArchitecturePage } from './pages/ArchitecturePage';
 import { AuthPage } from './pages/AuthPage';
 import { User } from './types';
@@ -72,6 +73,8 @@ export const App: React.FC = () => {
         )}
 
         {currentTab === 'followups' && <FollowUpsPage />}
+
+        {currentTab === 'records' && <BeneficiaryRecordsPage />}
 
         {currentTab === 'architecture' && <ArchitecturePage />}
 

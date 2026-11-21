@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../types';
-import { Mic, Activity, Calendar, Shield, Cpu, LogIn, LogOut, Radio } from 'lucide-react';
+import { Mic, Activity, Calendar, Shield, Cpu, LogIn, LogOut, Radio, FileText } from 'lucide-react';
 
 interface NavbarProps {
   currentTab: string;
@@ -80,6 +80,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Activity className="w-3.5 h-3.5" />
             Dashboard
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('records')}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              currentTab === 'records'
+                ? 'bg-gradient-to-r from-teal-500/30 to-[#00f5d4]/20 text-[#00f5d4] border border-[#00f5d4]/40'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Beneficiary Records
           </button>
 
           <button

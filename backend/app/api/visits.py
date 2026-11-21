@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.models.models import HealthcareVisit, Beneficiary, DangerSignAlert, FollowUpTask, AshaWorker, AuditEvent
-from app.schemas.schemas import HealthcareVisitCreate, HealthcareVisitResponse
+from app.schemas.schemas import HealthcareVisitCreate, HealthcareVisitResponse, HealthcareVisitUpdate
 
 router = APIRouter(prefix="/api/visits", tags=["Visits"])
 
@@ -45,17 +45,32 @@ def create_confirmed_visit(payload: HealthcareVisitCreate, db: Session = Depends
     Saves a structured visit AFTER explicit confirmation.
     Automatically generates follow-up tasks, danger sign alerts, and audit events.
     """
-    # 1. Resolve Beneficiary
-    b = db.query(Beneficiary).filter(
-        (Beneficiary.beneficiary_id.ilike(payload.beneficiary_id_str)) |
-        (Beneficiary.name.ilike(f"%{payload.beneficiary_id_str}%"))
-    ).first()
+    # 1. Resolve Beneficiary safely
+    search_value = (payload.beneficiary_id_str or "").strip()
+    if not search_value:
+        raise HTTPException(
+            status_code=400,
+            detail="Beneficiary ID or full name is required."
+        )
 
-    if not b:
-        # Fallback to first synthetic beneficiary if not matched
-        b = db.query(Beneficiary).first()
-        if not b:
-            raise HTTPException(status_code=400, detail="Beneficiary could not be resolved.")
+    matches = db.query(Beneficiary).filter(
+        (Beneficiary.beneficiary_id.ilike(search_value)) |
+        (Beneficiary.name.ilike(search_value))
+    ).all()
+
+    if len(matches) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No beneficiary found for '{search_value}'. Use a registered beneficiary ID or exact full name."
+        )
+
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Multiple beneficiaries matched. Please use the unique beneficiary ID."
+        )
+
+    b = matches[0]
 
     # 2. Get first ASHA profile
     asha = db.query(AshaWorker).first()
@@ -146,6 +161,70 @@ def create_confirmed_visit(payload: HealthcareVisitCreate, db: Session = Depends
         beneficiary_id=b.id,
         beneficiary_name=b.name,
         beneficiary_code=b.beneficiary_id,
+        visit_type=visit.visit_type,
+        visit_date=visit.visit_date,
+        weight_kg=visit.weight_kg,
+        vaccinations_given=visit.vaccinations_given or {},
+        health_observations=visit.health_observations,
+        next_visit_date=visit.next_visit_date,
+        danger_signs_detected=visit.danger_signs_detected or [],
+        referral_made=visit.referral_made,
+        referral_facility=visit.referral_facility,
+        house_number=visit.house_number,
+        location_lat=visit.location_lat,
+        location_lng=visit.location_lng,
+        location_address=visit.location_address,
+        status=visit.status,
+        confidence_score=visit.confidence_score,
+        transcript_snippet=visit.transcript_snippet,
+        created_at=visit.created_at
+    )
+
+
+@router.patch("/{visit_id}", response_model=HealthcareVisitResponse)
+def update_visit(
+    visit_id: int,
+    payload: HealthcareVisitUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update editable fields of an existing visit without changing its beneficiary or visit date."""
+    visit = db.query(HealthcareVisit).filter(
+        HealthcareVisit.id == visit_id
+    ).first()
+
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit report not found.")
+
+    changes = payload.dict(exclude_unset=True)
+
+    if not changes:
+        raise HTTPException(status_code=400, detail="No changes supplied.")
+
+    for field, value in changes.items():
+        setattr(visit, field, value)
+
+    beneficiary = db.query(Beneficiary).filter(
+        Beneficiary.id == visit.beneficiary_id
+    ).first()
+
+    db.add(AuditEvent(
+        event_type="VISIT_REPORT_EDITED",
+        description=f"Visit report {visit.id} edited for {beneficiary.name if beneficiary else 'Unknown'}",
+        metadata_json={
+            "visit_id": visit.id,
+            "beneficiary_id": beneficiary.beneficiary_id if beneficiary else None,
+            "updated_fields": list(changes.keys())
+        }
+    ))
+
+    db.commit()
+    db.refresh(visit)
+
+    return HealthcareVisitResponse(
+        id=visit.id,
+        beneficiary_id=visit.beneficiary_id,
+        beneficiary_name=beneficiary.name if beneficiary else "Unknown",
+        beneficiary_code=beneficiary.beneficiary_id if beneficiary else "SYN-000",
         visit_type=visit.visit_type,
         visit_date=visit.visit_date,
         weight_kg=visit.weight_kg,

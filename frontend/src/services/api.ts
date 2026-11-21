@@ -57,7 +57,23 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to save visit record');
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to save visit record');
+    }
+    return res.json();
+  },
+
+  async updateVisit(id: number, data: Partial<HealthcareVisit>): Promise<HealthcareVisit> {
+    const res = await fetch(`${API_BASE}/visits/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to update visit report');
+    }
     return res.json();
   },
 
