@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { HeroScene } from '../components/3d/HeroScene';
 import {
   Mic,
@@ -38,11 +38,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
           {/* Left Text Column */}
-          <div className="lg:col-span-7 flex flex-col gap-6 text-left">
+          <div className="lg:col-span-6 flex flex-col gap-6 text-left">
             <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/30 w-fit backdrop-blur-md">
               <span className="w-2 h-2 rounded-full bg-[#00f5d4] animate-ping" />
               <span className="text-xs font-bold uppercase tracking-wider text-[#00f5d4]">
-                Build Bengaluru 2.0 • PS1 Healthcare
+                Build Bengaluru 2.0 â€¢ PS1 Healthcare
               </span>
             </div>
 
@@ -96,7 +96,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Right 3D Column */}
-          <div className="lg:col-span-5 h-[460px] sm:h-[540px] lg:h-[600px] w-full relative flex items-center justify-center">
+          <div className="lg:col-span-6 h-[460px] sm:h-[540px] lg:h-[600px] w-full relative flex items-center justify-center">
             <HeroScene />
           </div>
         </div>
@@ -172,7 +172,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Speak Naturally. AI Structures The Record.
               </h2>
               <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                ASHA-VAANI allows the health worker to speak unconstrained natural language—even mixing Kannada, Hindi, and English—while holding the baby or counseling the mother. The AI pipeline transcribes, extracts, validates against health guidelines, reads back for confirmation, and creates calendar follow-ups.
+                ASHA-VAANI allows the health worker to speak unconstrained natural languageâ€”even mixing Kannada, Hindi, and Englishâ€”while holding the baby or counseling the mother. The AI pipeline transcribes, extracts, validates against health guidelines, reads back for confirmation, and creates calendar follow-ups.
               </p>
 
               <div className="space-y-3">
@@ -225,7 +225,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <div className="p-2.5 rounded-lg bg-[#00f5d4]/20 border border-[#00f5d4]/40 text-[#00f5d4] text-[11px] font-bold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#00f5d4]" />
-                  Visit Confirmed & Saved • Follow-up task added to calendar!
+                  Visit Confirmed & Saved â€¢ Follow-up task added to calendar!
                 </div>
               </div>
             </div>
@@ -241,7 +241,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             The Voice-to-Record Pipeline
           </h2>
           <p className="text-slate-400 text-sm mt-3">
-            SPEAK → TRANSCRIBE → UNDERSTAND → EXTRACT → VALIDATE → READ BACK → CONFIRM → SAVE → FOLLOW-UP
+            SPEAK â†’ TRANSCRIBE â†’ UNDERSTAND â†’ EXTRACT â†’ VALIDATE â†’ READ BACK â†’ CONFIRM â†’ SAVE â†’ FOLLOW-UP
           </p>
         </div>
 
@@ -281,7 +281,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[11px] font-bold mb-1">
-                  CRITICAL COMPETITION MODULE • ZERO MISS POLICY
+                  CRITICAL COMPETITION MODULE â€¢ ZERO MISS POLICY
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Deterministic Danger-Sign Rule Engine
@@ -370,3 +370,4 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     </div>
   );
 };
+
