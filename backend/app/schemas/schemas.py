@@ -47,6 +47,10 @@ class HealthcareVisitCreate(BaseModel):
     next_visit_date: Optional[str] = None
     danger_signs_detected: List[Dict[str, Any]] = []
     referral_made: bool = False
+    house_number: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_address: Optional[str] = None
     status: str = "CONFIRMED" # Only submitted after explicit confirmation gate
     transcript_snippet: Optional[str] = None
 
@@ -64,6 +68,10 @@ class HealthcareVisitResponse(BaseModel):
     danger_signs_detected: List[Dict[str, Any]] = []
     referral_made: bool = False
     referral_facility: Optional[str] = None
+    house_number: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_address: Optional[str] = None
     status: str
     confidence_score: float
     transcript_snippet: Optional[str] = None

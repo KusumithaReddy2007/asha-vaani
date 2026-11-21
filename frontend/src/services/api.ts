@@ -46,6 +46,10 @@ export const api = {
     next_visit_date?: string | null;
     danger_signs_detected: any[];
     referral_made: boolean;
+    house_number?: string;
+    location_lat?: number | null;
+    location_lng?: number | null;
+    location_address?: string;
     transcript_snippet?: string;
   }): Promise<HealthcareVisit> {
     const res = await fetch(`${API_BASE}/visits`, {

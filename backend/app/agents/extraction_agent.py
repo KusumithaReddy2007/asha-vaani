@@ -23,6 +23,12 @@ class ExtractedHealthcareRecord(BaseModel):
     next_visit_date_iso: Optional[str] = None
     previous_visit_date: Optional[str] = None
 
+    # Location & House Metadata
+    house_number: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_address: Optional[str] = None
+
     danger_signs: List[Dict[str, Any]] = Field(default_factory=list)
     danger_sign_correction_requests: List[Dict[str, Any]] = Field(default_factory=list)
     danger_sign_audit_history: List[Dict[str, Any]] = Field(default_factory=list)
@@ -477,6 +483,21 @@ class HealthcareExtractionAgent:
         if "not feeding properly" in lower:
             self._append_unique(record.health_observations, "Not feeding properly")
 
+    def _extract_house_number(
+        self,
+        record: ExtractedHealthcareRecord,
+        lower: str,
+    ) -> None:
+        # e.g. "house number 42", "house no 12b", "door number 5A", "h no 15", "house 32"
+        house_match = re.search(
+            r"\b(?:house|door|flat|h\s*no|house\s*no|door\s*no)\s*(?:number|no|#)?\s*[:.-]?\s*([A-Za-z0-9\/-]+)\b",
+            lower,
+        )
+        if house_match:
+            cand = house_match.group(1).upper()
+            if cand not in {"IS", "A", "THE", "OF", "VISIT", "TODAY"}:
+                record.house_number = cand
+
     def _extract_vaccinations(
         self,
         record: ExtractedHealthcareRecord,
@@ -727,7 +748,10 @@ class HealthcareExtractionAgent:
         # 9. Extract Next Visit Date & Corrections
         self._extract_next_visit_date(record, text, lower, is_correction)
 
-        # 10. Evaluate Save Readiness & Generate Summary
+        # 10. Extract House Number if spoken
+        self._extract_house_number(record, lower)
+
+        # 11. Evaluate Save Readiness & Generate Summary
         can_save, reason = can_save_record(record)
         if not can_save:
             record.save_blocked = True

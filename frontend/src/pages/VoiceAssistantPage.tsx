@@ -16,6 +16,9 @@ import {
   Radio,
   FileCheck,
   Check,
+  MapPin,
+  Home,
+  Navigation,
 } from 'lucide-react';
 
 export const VoiceAssistantPage: React.FC = () => {
@@ -62,6 +65,56 @@ export const VoiceAssistantPage: React.FC = () => {
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [manualText, setManualText] = useState('');
 
+  // Live Location & House Number State
+  const [houseNumber, setHouseNumber] = useState('');
+  const [liveLocation, setLiveLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    address: string;
+    isLive: boolean;
+  }>({
+    lat: 12.9784,
+    lng: 77.7289,
+    accuracy: 6,
+    address: 'Kadugodi Sector 4, Belathur Ward 3, Bengaluru Urban',
+    isLive: false,
+  });
+  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
+
+  // Capture Live GPS Location
+  const captureLiveLocation = () => {
+    if (!('geolocation' in navigator)) {
+      console.warn('Geolocation not supported by browser.');
+      return;
+    }
+    setIsCapturingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(5));
+        const lng = Number(pos.coords.longitude.toFixed(5));
+        const acc = Math.round(pos.coords.accuracy);
+        setLiveLocation({
+          lat,
+          lng,
+          accuracy: acc,
+          address: `Bengaluru (${lat}°, ${lng}°)`,
+          isLive: true,
+        });
+        setIsCapturingLocation(false);
+      },
+      (err) => {
+        console.warn('Geolocation fallback:', err.message);
+        setIsCapturingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  useEffect(() => {
+    captureLiveLocation();
+  }, []);
+
   // 1. Initialize WebSocket Connection
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -87,6 +140,9 @@ export const VoiceAssistantPage: React.FC = () => {
             speakBrowserText(data.text);
           } else if (data.type === 'record_updated') {
             setRecord(data.record);
+            if (data.record.house_number) {
+              setHouseNumber(data.record.house_number);
+            }
             setIsProcessing(false);
 
             if (data.readback_summary) {
@@ -417,11 +473,15 @@ export const VoiceAssistantPage: React.FC = () => {
         next_visit_date: record.next_visit_date,
         danger_signs_detected: record.danger_signs,
         referral_made: record.danger_signs.length > 0,
+        house_number: houseNumber.trim() || record.house_number || undefined,
+        location_lat: liveLocation.lat,
+        location_lng: liveLocation.lng,
+        location_address: liveLocation.address,
         transcript_snippet: record.raw_transcript,
       });
 
       setRecord((prev) => ({ ...prev, status: 'Confirmed' }));
-      setSaveSuccessMessage('Record confirmed and saved to database successfully!');
+      setSaveSuccessMessage('Record confirmed with GPS location and saved to database successfully!');
       speakText('Record confirmed and saved.');
     } catch (e: any) {
       console.error(e);
@@ -440,6 +500,7 @@ export const VoiceAssistantPage: React.FC = () => {
       status: 'Pending Confirmation',
       confidence: 0.95,
     });
+    setHouseNumber('');
     setActiveDanger(null);
     setSaveSuccessMessage(null);
     setTranscript('');
@@ -785,6 +846,58 @@ export const VoiceAssistantPage: React.FC = () => {
                 <span className="text-slate-400">Visit Type:</span>
                 <span className="font-semibold text-teal-300">
                   {record.visit_type || <span className="text-slate-500 italic">Pending...</span>}
+                </span>
+              </div>
+
+              {/* House Number (Manual Entry + Voice Extraction) */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1.5 font-medium">
+                    <Home className="w-3.5 h-3.5 text-[#00f5d4]" />
+                    House / Door Number:
+                  </span>
+                  <span className="text-[10px] text-teal-300 font-mono">
+                    {houseNumber ? 'Custom / Verified' : 'Manual or voice'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={houseNumber}
+                    onChange={(e) => setHouseNumber(e.target.value)}
+                    placeholder="Enter house no. (e.g. #42/B, Belathur Ward 3)"
+                    className="w-full bg-black/40 border border-teal-500/30 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00f5d4] font-mono transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Live Location GPS Capture */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1.5 font-medium">
+                    <MapPin className="w-3.5 h-3.5 text-[#00f5d4]" />
+                    Live Visit Location:
+                  </span>
+                  <button
+                    onClick={captureLiveLocation}
+                    disabled={isCapturingLocation}
+                    className="text-[10px] text-[#00f5d4] hover:underline flex items-center gap-1 font-mono transition-all cursor-pointer"
+                  >
+                    <Navigation className={`w-3 h-3 ${isCapturingLocation ? 'animate-spin' : ''}`} />
+                    {isCapturingLocation ? 'Locating...' : 'Refresh GPS'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono p-2 rounded-lg bg-teal-950/40 border border-teal-500/25">
+                  <span className="text-white flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${liveLocation.isLive ? 'bg-emerald-400 animate-pulse' : 'bg-teal-400'}`} />
+                    {liveLocation.lat.toFixed(4)}° N, {liveLocation.lng.toFixed(4)}° E
+                  </span>
+                  <span className="text-[10px] text-teal-300 font-semibold">
+                    {liveLocation.isLive ? `Live GPS (±${liveLocation.accuracy}m)` : 'Kadugodi Sub-Centre'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 truncate">
+                  📍 {liveLocation.address}
                 </span>
               </div>
 

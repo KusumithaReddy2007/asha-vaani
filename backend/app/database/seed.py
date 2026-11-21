@@ -1,4 +1,5 @@
 import datetime
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.database.session import Base, engine, SessionLocal
 from app.models.models import User, AshaWorker, Beneficiary, HealthcareVisit, DangerSignAlert, FollowUpTask, AuditEvent
@@ -7,6 +8,24 @@ from app.core.security import hash_password
 def seed_database():
     """Seed synthetic beneficiaries, demo ASHA worker, and initial records."""
     Base.metadata.create_all(bind=engine)
+
+    # Auto-migrate SQLite columns if table already existed
+    try:
+        with engine.connect() as conn:
+            for col, col_type in [
+                ("house_number", "VARCHAR(50)"),
+                ("location_lat", "FLOAT"),
+                ("location_lng", "FLOAT"),
+                ("location_address", "VARCHAR(255)"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE healthcare_visits ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     db: Session = SessionLocal()
 
     try:

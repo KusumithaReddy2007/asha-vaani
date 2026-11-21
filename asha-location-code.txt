@@ -1,0 +1,631 @@
+========== DATABASE MODEL ==========
+import datetime
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy.orm import relationship
+from app.database.session import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    role = Column(String(50), default="ASHA_WORKER")  # ASHA_WORKER, PHC_MO, ADMIN
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    asha_profile = relationship("AshaWorker", back_populates="user", uselist=False)
+
+class AshaWorker(Base):
+    __tablename__ = "asha_workers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    worker_id = Column(String(50), unique=True, index=True, nullable=False) # e.g. ASHA-BLR-042
+    assigned_area = Column(String(100), default="Whitefield Sector 4")
+    phc_name = Column(String(100), default="Kadugodi Primary Health Centre")
+    village = Column(String(100), default="Belathur")
+    phone = Column(String(20), default="+91-9876543210")
+    total_visits = Column(Integer, default=0)
+
+    user = relationship("User", back_populates="asha_profile")
+    visits = relationship("HealthcareVisit", back_populates="asha_worker")
+
+class Beneficiary(Base):
+    __tablename__ = "beneficiaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    beneficiary_id = Column(String(50), unique=True, index=True, nullable=False) # SYN-001, SYN-002
+    name = Column(String(100), index=True, nullable=False)
+    category = Column(String(50), nullable=False) # PREGNANT_WOMAN, NEWBORN, INFANT, CHILD
+    age_or_details = Column(String(100), nullable=True) # e.g. "24 yrs, 7 months pregnant" or "10 days newborn"
+    guardian_name = Column(String(100), nullable=True) # Husband or Mother's name
+    village = Column(String(100), default="Belathur Ward 3")
+    contact_phone = Column(String(20), default="+91-9988776655")
+    danger_flag = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    visits = relationship("HealthcareVisit", back_populates="beneficiary")
+    alerts = relationship("DangerSignAlert", back_populates="beneficiary")
+    followups = relationship("FollowUpTask", back_populates="beneficiary")
+
+class HealthcareVisit(Base):
+    __tablename__ = "healthcare_visits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    beneficiary_id = Column(Integer, ForeignKey("beneficiaries.id"), nullable=False)
+    asha_worker_id = Column(Integer, ForeignKey("asha_workers.id"), nullable=True)
+    
+    visit_type = Column(String(50), nullable=False) # Newborn Visit, ANC Checkup, Immunization, Postnatal
+    visit_date = Column(String(20), default=lambda: datetime.datetime.utcnow().strftime("%Y-%m-%d"))
+    weight_kg = Column(Float, nullable=True)
+    vaccinations_given = Column(JSON, default=dict) # e.g. {"BCG": "Given", "OPV-0": "Given"}
+    health_observations = Column(Text, nullable=True)
+    next_visit_date = Column(String(20), nullable=True)
+    
+    danger_signs_detected = Column(JSON, default=list) # List of detected danger signs
+    referral_made = Column(Boolean, default=False)
+    referral_facility = Column(String(100), default="Kadugodi PHC")
+    
+    status = Column(String(50), default="PENDING_CONFIRMATION") # PENDING_CONFIRMATION, CONFIRMED, CANCELLED
+    confidence_score = Column(Float, default=0.95)
+    transcript_snippet = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    beneficiary = relationship("Beneficiary", back_populates="visits")
+    asha_worker = relationship("AshaWorker", back_populates="visits")
+    alerts = relationship("DangerSignAlert", back_populates="visit")
+    followup_task = relationship("FollowUpTask", back_populates="visit", uselist=False)
+
+class DangerSignAlert(Base):
+    __tablename__ = "danger_sign_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("healthcare_visits.id"), nullable=True)
+    beneficiary_id = Column(Integer, ForeignKey("beneficiaries.id"), nullable=False)
+    
+    danger_sign_name = Column(String(150), nullable=False)
+    severity = Column(String(50), default="EMERGENCY") # EMERGENCY, HIGH
+    referral_action = Column(String(255), default="Immediate referral to Primary Health Centre (PHC) now.")
+    guideline_citation = Column(String(255), default="MoHFW Operational Guidelines & IMNCI Protocol Section 3.2")
+    
+    acknowledged = Column(Boolean, default=False)
+    referred_to_phc = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    beneficiary = relationship("Beneficiary", back_populates="alerts")
+    visit = relationship("HealthcareVisit", back_populates="alerts")
+
+class FollowUpTask(Base):
+    __tablename__ = "follow_up_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    beneficiary_id = Column(Integer, ForeignKey("beneficiaries.id"), nullable=False)
+    visit_id = Column(Integer, ForeignKey("healthcare_visits.id"), nullable=True)
+    
+    task_title = Column(String(150), nullable=False) # e.g. "Postnatal 14-day checkup", "PHC Referral Follow-up"
+    due_date = Column(String(20), nullable=False) # YYYY-MM-DD
+    status = Column(String(50), default="PENDING") # PENDING, COMPLETED, OVERDUE
+    priority = Column(String(50), default="NORMAL") # NORMAL, HIGH, EMERGENCY
+    notes = Column(Text, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    beneficiary = relationship("Beneficiary", back_populates="followups")
+    visit = relationship("HealthcareVisit", back_populates="followup_task")
+
+class ConversationSession(Base):
+    __tablename__ = "conversation_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(100), unique=True, index=True, nullable=False)
+    beneficiary_id = Column(String(50), nullable=True)
+    raw_transcript = Column(Text, default="")
+    structured_data = Column(JSON, default=dict)
+    audio_duration_seconds = Column(Float, default=0.0)
+    status = Column(String(50), default="ACTIVE") # ACTIVE, COMPLETED, ABORTED
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(100), nullable=False) # RECORD_CONFIRMED, DANGER_SIGN_DETECTED, VOICE_EDIT
+    description = Column(String(255), nullable=False)
+    user_id = Column(Integer, nullable=True)
+    metadata_json = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+========== PYDANTIC SCHEMAS ==========
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from pydantic import BaseModel
+
+# Auth Schemas
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserRegister(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: str = "ASHA_WORKER"
+    worker_id: Optional[str] = "ASHA-BLR-042"
+    assigned_area: Optional[str] = "Whitefield Sector 4"
+    village: Optional[str] = "Belathur"
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: Dict[str, Any]
+
+# Beneficiary Schemas
+class BeneficiaryResponse(BaseModel):
+    id: int
+    beneficiary_id: str
+    name: str
+    category: str
+    age_or_details: Optional[str] = None
+    guardian_name: Optional[str] = None
+    village: str
+    contact_phone: str
+    danger_flag: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Visit Schemas
+class HealthcareVisitCreate(BaseModel):
+    beneficiary_id_str: str # SYN-001 or database id
+    visit_type: str
+    weight_kg: Optional[float] = None
+    vaccinations_given: Dict[str, str] = {}
+    health_observations: Optional[str] = None
+    next_visit_date: Optional[str] = None
+    danger_signs_detected: List[Dict[str, Any]] = []
+    referral_made: bool = False
+    status: str = "CONFIRMED" # Only submitted after explicit confirmation gate
+    transcript_snippet: Optional[str] = None
+
+class HealthcareVisitResponse(BaseModel):
+    id: int
+    beneficiary_id: int
+    beneficiary_name: Optional[str] = None
+    beneficiary_code: Optional[str] = None
+    visit_type: str
+    visit_date: str
+    weight_kg: Optional[float] = None
+    vaccinations_given: Dict[str, str] = {}
+    health_observations: Optional[str] = None
+    next_visit_date: Optional[str] = None
+    danger_signs_detected: List[Dict[str, Any]] = []
+    referral_made: bool = False
+    referral_facility: Optional[str] = None
+    status: str
+    confidence_score: float
+    transcript_snippet: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Danger Sign Alerts
+class DangerSignAlertResponse(BaseModel):
+    id: int
+    visit_id: Optional[int] = None
+    beneficiary_id: int
+    beneficiary_name: Optional[str] = None
+    beneficiary_code: Optional[str] = None
+    danger_sign_name: str
+    severity: str
+    referral_action: str
+    guideline_citation: str
+    acknowledged: bool
+    referred_to_phc: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Follow-up Schemas
+class FollowUpResponse(BaseModel):
+    id: int
+    beneficiary_id: int
+    beneficiary_name: Optional[str] = None
+    beneficiary_code: Optional[str] = None
+    visit_id: Optional[int] = None
+    task_title: str
+    due_date: str
+    status: str
+    priority: str
+    notes: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class FollowUpStatusUpdate(BaseModel):
+    status: str # "COMPLETED", "PENDING", "OVERDUE"
+    notes: Optional[str] = None
+
+# Analytics & Dashboard Metrics
+class DashboardMetricsResponse(BaseModel):
+    total_household_visits: int
+    today_visits: int
+    pending_followups: int
+    completed_records: int
+    active_danger_alerts: int
+    total_beneficiaries: int
+    vaccinations_delivered: int
+    referrals_to_phc: int
+
+========== VISITS API ==========
+import datetime
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.database.session import get_db
+from app.models.models import HealthcareVisit, Beneficiary, DangerSignAlert, FollowUpTask, AshaWorker, AuditEvent
+from app.schemas.schemas import HealthcareVisitCreate, HealthcareVisitResponse
+
+router = APIRouter(prefix="/api/visits", tags=["Visits"])
+
+@router.get("", response_model=List[HealthcareVisitResponse])
+def get_visits(db: Session = Depends(get_db)):
+    visits = db.query(HealthcareVisit).order_by(HealthcareVisit.created_at.desc()).all()
+    results = []
+    for v in visits:
+        b = db.query(Beneficiary).filter(Beneficiary.id == v.beneficiary_id).first()
+        results.append(HealthcareVisitResponse(
+            id=v.id,
+            beneficiary_id=v.beneficiary_id,
+            beneficiary_name=b.name if b else "Unknown",
+            beneficiary_code=b.beneficiary_id if b else "SYN-000",
+            visit_type=v.visit_type,
+            visit_date=v.visit_date,
+            weight_kg=v.weight_kg,
+            vaccinations_given=v.vaccinations_given or {},
+            health_observations=v.health_observations,
+            next_visit_date=v.next_visit_date,
+            danger_signs_detected=v.danger_signs_detected or [],
+            referral_made=v.referral_made,
+            referral_facility=v.referral_facility,
+            status=v.status,
+            confidence_score=v.confidence_score,
+            transcript_snippet=v.transcript_snippet,
+            created_at=v.created_at
+        ))
+    return results
+
+@router.post("", response_model=HealthcareVisitResponse)
+def create_confirmed_visit(payload: HealthcareVisitCreate, db: Session = Depends(get_db)):
+    """
+    Saves a structured visit AFTER explicit confirmation.
+    Automatically generates follow-up tasks, danger sign alerts, and audit events.
+    """
+    # 1. Resolve Beneficiary
+    b = db.query(Beneficiary).filter(
+        (Beneficiary.beneficiary_id.ilike(payload.beneficiary_id_str)) |
+        (Beneficiary.name.ilike(f"%{payload.beneficiary_id_str}%"))
+    ).first()
+
+    if not b:
+        # Fallback to first synthetic beneficiary if not matched
+        b = db.query(Beneficiary).first()
+        if not b:
+            raise HTTPException(status_code=400, detail="Beneficiary could not be resolved.")
+
+    # 2. Get first ASHA profile
+    asha = db.query(AshaWorker).first()
+
+    # 3. Create Visit Record
+    has_dangers = len(payload.danger_signs_detected) > 0
+    visit = HealthcareVisit(
+        beneficiary_id=b.id,
+        asha_worker_id=asha.id if asha else None,
+        visit_type=payload.visit_type,
+        visit_date=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+        weight_kg=payload.weight_kg,
+        vaccinations_given=payload.vaccinations_given,
+        health_observations=payload.health_observations,
+        next_visit_date=payload.next_visit_date,
+        danger_signs_detected=payload.danger_signs_detected,
+        referral_made=has_dangers or payload.referral_made,
+        referral_facility="Kadugodi PHC Emergency Unit" if has_dangers else "Kadugodi PHC",
+        status="CONFIRMED",
+        confidence_score=0.98,
+        transcript_snippet=payload.transcript_snippet
+    )
+    db.add(visit)
+    db.flush()
+
+    if asha:
+        asha.total_visits = (asha.total_visits or 0) + 1
+
+    # 4. If danger signs detected, trigger Emergency Referral & Alerts
+    if has_dangers:
+        b.danger_flag = True
+        for ds in payload.danger_signs_detected:
+            alert = DangerSignAlert(
+                visit_id=visit.id,
+                beneficiary_id=b.id,
+                danger_sign_name=ds.get("name", "Unspecified Danger Sign"),
+                severity="EMERGENCY",
+                referral_action=ds.get("action_instruction", "Immediate referral to Primary Health Centre (PHC) now."),
+                guideline_citation=ds.get("guideline", "MoHFW Operational Guidelines Section 4.1"),
+                acknowledged=False,
+                referred_to_phc=True
+            )
+            db.add(alert)
+
+            # Create high-priority follow up for referral
+            db.add(FollowUpTask(
+                beneficiary_id=b.id,
+                visit_id=visit.id,
+                task_title=f"URGENT: Verify PHC Referral for {ds.get('name', 'Danger Sign')}",
+                due_date=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+                status="PENDING",
+                priority="EMERGENCY",
+                notes=f"Beneficiary referred to Kadugodi PHC. Verify emergency care delivery."
+            ))
+
+    # 5. Routine next visit follow-up task
+    if payload.next_visit_date:
+        db.add(FollowUpTask(
+            beneficiary_id=b.id,
+            visit_id=visit.id,
+            task_title=f"Scheduled {payload.visit_type} Follow-up",
+            due_date=payload.next_visit_date,
+            status="PENDING",
+            priority="NORMAL",
+            notes=f"Vaccination & growth monitoring follow-up."
+        ))
+
+    # 6. Audit Event
+    db.add(AuditEvent(
+        event_type="VISIT_CONFIRMED_AND_SAVED",
+        description=f"Visit confirmed for {b.name} ({b.beneficiary_id}). Danger signs: {len(payload.danger_signs_detected)}",
+        metadata_json={
+            "visit_id": visit.id,
+            "beneficiary_id": b.beneficiary_id,
+            "weight_kg": payload.weight_kg,
+            "danger_signs": payload.danger_signs_detected
+        }
+    ))
+
+    db.commit()
+
+    return HealthcareVisitResponse(
+        id=visit.id,
+        beneficiary_id=b.id,
+        beneficiary_name=b.name,
+        beneficiary_code=b.beneficiary_id,
+        visit_type=visit.visit_type,
+        visit_date=visit.visit_date,
+        weight_kg=visit.weight_kg,
+        vaccinations_given=visit.vaccinations_given or {},
+        health_observations=visit.health_observations,
+        next_visit_date=visit.next_visit_date,
+        danger_signs_detected=visit.danger_signs_detected or [],
+        referral_made=visit.referral_made,
+        referral_facility=visit.referral_facility,
+        status=visit.status,
+        confidence_score=visit.confidence_score,
+        transcript_snippet=visit.transcript_snippet,
+        created_at=visit.created_at
+    )
+
+========== FRONTEND API SAVE FUNCTION ==========
+
+  frontend\src\pages\VoiceAssistantPage.tsx:403:    setTranscript('');
+  frontend\src\pages\VoiceAssistantPage.tsx:404:    setManualText('');
+  frontend\src\pages\VoiceAssistantPage.tsx:405:  };
+  frontend\src\pages\VoiceAssistantPage.tsx:406:
+  frontend\src\pages\VoiceAssistantPage.tsx:407:  // 5. Explicit Record Confirmation
+  frontend\src\pages\VoiceAssistantPage.tsx:408:  const confirmAndSaveRecord = async () => {
+  frontend\src\pages\VoiceAssistantPage.tsx:409:    setIsProcessing(true);
+  frontend\src\pages\VoiceAssistantPage.tsx:410:    try {
+> frontend\src\pages\VoiceAssistantPage.tsx:411:      await api.saveConfirmedVisit({
+  frontend\src\pages\VoiceAssistantPage.tsx:412:        beneficiary_id_str: record.beneficiary_id || '',
+  frontend\src\pages\VoiceAssistantPage.tsx:413:        visit_type: record.visit_type || 'Household Visit',
+  frontend\src\pages\VoiceAssistantPage.tsx:414:        weight_kg: record.weight_kg,
+  frontend\src\pages\VoiceAssistantPage.tsx:415:        vaccinations_given: record.vaccinations,
+  frontend\src\pages\VoiceAssistantPage.tsx:416:        health_observations: record.health_observations.join(', '),
+  frontend\src\pages\VoiceAssistantPage.tsx:417:        next_visit_date: record.next_visit_date,
+  frontend\src\pages\VoiceAssistantPage.tsx:418:        danger_signs_detected: record.danger_signs,
+  frontend\src\pages\VoiceAssistantPage.tsx:419:        referral_made: record.danger_signs.length > 0,
+  frontend\src\pages\VoiceAssistantPage.tsx:420:        transcript_snippet: record.raw_transcript,
+  frontend\src\pages\VoiceAssistantPage.tsx:421:      });
+  frontend\src\pages\VoiceAssistantPage.tsx:422:
+  frontend\src\pages\VoiceAssistantPage.tsx:423:      setRecord((prev) => ({ ...prev, status: 'Confirmed' }));
+  frontend\src\pages\VoiceAssistantPage.tsx:424:      setSaveSuccessMessage('Record confirmed and saved to database successfully!');
+  frontend\src\pages\VoiceAssistantPage.tsx:425:      speakText('Record confirmed and saved.');
+  frontend\src\pages\VoiceAssistantPage.tsx:426:    } catch (e: any) {
+  frontend\src\pages\VoiceAssistantPage.tsx:427:      console.error(e);
+  frontend\src\pages\VoiceAssistantPage.tsx:428:      alert('Error saving record: ' + e.message);
+  frontend\src\pages\VoiceAssistantPage.tsx:429:    } finally {
+  frontend\src\pages\VoiceAssistantPage.tsx:430:      setIsProcessing(false);
+  frontend\src\pages\VoiceAssistantPage.tsx:431:    }
+  frontend\src\pages\VoiceAssistantPage.tsx:432:  };
+  frontend\src\pages\VoiceAssistantPage.tsx:433:
+  frontend\src\pages\VoiceAssistantPage.tsx:434:  // 6. Reset Session
+  frontend\src\pages\VoiceAssistantPage.tsx:435:  const resetSession = () => {
+  frontend\src\pages\VoiceAssistantPage.tsx:436:    setRecord({
+  frontend\src\services\api.ts:32:
+  frontend\src\services\api.ts:33:  // Visits
+  frontend\src\services\api.ts:34:  async getVisits(): Promise<HealthcareVisit[]> {
+  frontend\src\services\api.ts:35:    const res = await fetch(`${API_BASE}/visits`);
+  frontend\src\services\api.ts:36:    if (!res.ok) throw new Error('Failed to fetch visits');
+  frontend\src\services\api.ts:37:    return res.json();
+  frontend\src\services\api.ts:38:  },
+  frontend\src\services\api.ts:39:
+> frontend\src\services\api.ts:40:  async saveConfirmedVisit(data: {
+  frontend\src\services\api.ts:41:    beneficiary_id_str: string;
+  frontend\src\services\api.ts:42:    visit_type: string;
+  frontend\src\services\api.ts:43:    weight_kg?: number | null;
+  frontend\src\services\api.ts:44:    vaccinations_given: Record<string, string>;
+  frontend\src\services\api.ts:45:    health_observations?: string;
+  frontend\src\services\api.ts:46:    next_visit_date?: string | null;
+  frontend\src\services\api.ts:47:    danger_signs_detected: any[];
+  frontend\src\services\api.ts:48:    referral_made: boolean;
+  frontend\src\services\api.ts:49:    transcript_snippet?: string;
+  frontend\src\services\api.ts:50:  }): Promise<HealthcareVisit> {
+  frontend\src\services\api.ts:51:    const res = await fetch(`${API_BASE}/visits`, {
+  frontend\src\services\api.ts:52:      method: 'POST',
+  frontend\src\services\api.ts:53:      headers: { 'Content-Type': 'application/json' },
+  frontend\src\services\api.ts:54:      body: JSON.stringify(data),
+  frontend\src\services\api.ts:55:    });
+  frontend\src\services\api.ts:56:    if (!res.ok) throw new Error('Failed to save visit record');
+  frontend\src\services\api.ts:57:    return res.json();
+  frontend\src\services\api.ts:58:  },
+  frontend\src\services\api.ts:59:
+  frontend\src\services\api.ts:60:  // Danger Signs
+  frontend\src\services\api.ts:61:  async getAlerts(): Promise<DangerSignAlert[]> {
+  frontend\src\services\api.ts:62:    const res = await fetch(`${API_BASE}/danger-signs/alerts`);
+  frontend\src\services\api.ts:63:    if (!res.ok) throw new Error('Failed to fetch alerts');
+  frontend\src\services\api.ts:64:    return res.json();
+  frontend\src\services\api.ts:65:  },
+
+
+
+
+========== FRONTEND COMPONENT STATE ==========
+import React, { useState, useEffect, useRef } from 'react';
+import { Microphone3D } from '../components/3d/Microphone3D';
+import { WaveformVisualizer } from '../components/WaveformVisualizer';
+import { ExtractedRecord, DetectedDangerSign } from '../types';
+import { api } from '../services/api';
+import {
+  Mic,
+  MicOff,
+  RotateCcw,
+  Volume2,
+  CheckCircle2,
+  AlertOctagon,
+  Sparkles,
+  Send,
+  Languages,
+  Radio,
+  FileCheck,
+  Check,
+} from 'lucide-react';
+
+export const VoiceAssistantPage: React.FC = () => {
+  // Voice State
+  const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'hi' | 'kn'>('en');
+  const [audioLevel, setAudioLevel] = useState(0);
+
+  // Audio Context & Analyser
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef('');
+  const submittedTranscriptRef = useRef(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+
+  // Conversation & Extraction State
+  const [transcript, setTranscript] = useState('');
+  const [conversationHistory, setConversationHistory] = useState<
+    Array<{ sender: 'user' | 'assistant' | 'system'; text: string; time: string }>
+  >([
+    {
+      sender: 'assistant',
+      text: 'Namaste! ASHA-VAANI is ready. Speak beneficiary details or visit notes in English, Hindi, or Kannada.',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    },
+  ]);
+
+  const [record, setRecord] = useState<ExtractedRecord>({
+    vaccinations: {},
+    health_observations: [],
+    danger_signs: [],
+    status: 'Pending Confirmation',
+    confidence: 0.95,
+  });
+
+  const [activeDanger, setActiveDanger] = useState<DetectedDangerSign | null>(null);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [manualText, setManualText] = useState('');
+
+  // 1. Initialize WebSocket Connection
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/voice`;
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        ws.send(JSON.stringify({ type: 'init', language }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'tts_audio_ready') {
+            playTimbreAudio(data.audio_base64);
+          } else if (data.type === 'tts_fallback') {
+            speakBrowserText(data.text);
+          } else if (data.type === 'record_updated') {
+            setRecord(data.record);
+            setIsProcessing(false);
+
+            if (data.readback_summary) {
+              setConversationHistory((prev) => [
+                ...prev,
+                {
+                  sender: 'assistant',
+                  text: data.readback_summary,
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                },
+              ]);
+              // Trigger read-back TTS
+              speakText(data.readback_summary);
+            }
+          } else if (data.type === 'danger_sign_detected') {
+            const dangers: DetectedDangerSign[] = data.dangers;
+            if (dangers.length > 0) {
+              setActiveDanger(dangers[dangers.length - 1]);
+              setConversationHistory((prev) => [
+                ...prev,
+                {
+                  sender: 'system',
+                  text: `EMERGENCY ALERT: ${dangers[dangers.length - 1].name} detected! Referral to PHC required.`,
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                },
+              ]);
+              speakText(data.spoken_alert || 'Emergency danger sign detected. Refer to PHC immediately.');
+            }
+          } else if (data.type === 'record_saved_successfully') {
+            setRecord((prev) => ({ ...prev, status: 'Confirmed' }));
+            setSaveSuccessMessage(data.message || 'Record confirmed and saved to database!');
+            setIsProcessing(false);
+            setConversationHistory((prev) => [
+              ...prev,
+              {
+                sender: 'assistant',
+                text: 'Record has been successfully saved to the database. Follow-up task added to calendar.',
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              },
+            ]);
+            speakText('Record confirmed and saved successfully.');
+          }
+        } catch (e) {
+          console.error('Error handling WS message:', e);
+        }
+      };

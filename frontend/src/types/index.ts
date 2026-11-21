@@ -38,6 +38,10 @@ export interface ExtractedRecord {
   health_observations: string[];
   next_visit_date?: string | null;
   danger_signs: DetectedDangerSign[];
+  house_number?: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_address?: string;
   status: 'Pending Confirmation' | 'Confirmed' | 'Cancelled';
   confidence: number;
   clarification_needed?: string;
@@ -58,6 +62,10 @@ export interface HealthcareVisit {
   danger_signs_detected: DetectedDangerSign[];
   referral_made: boolean;
   referral_facility?: string;
+  house_number?: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_address?: string;
   status: string;
   confidence_score: number;
   transcript_snippet?: string;

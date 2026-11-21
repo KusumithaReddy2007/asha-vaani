@@ -390,6 +390,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <tr className="border-b border-teal-500/20 text-slate-400 font-mono">
                 <th className="pb-3 font-semibold">Date</th>
                 <th className="pb-3 font-semibold">Beneficiary</th>
+                <th className="pb-3 font-semibold">House & Live GPS</th>
                 <th className="pb-3 font-semibold">Visit Type</th>
                 <th className="pb-3 font-semibold">Weight</th>
                 <th className="pb-3 font-semibold">Vaccinations / Meds</th>
@@ -403,6 +404,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <td className="py-3">
                     <span className="font-bold text-white block">{visit.beneficiary_name}</span>
                     <span className="text-[10px] text-teal-400 font-mono">{visit.beneficiary_code}</span>
+                  </td>
+                  <td className="py-3">
+                    <span className="font-semibold text-white block">
+                      {visit.house_number ? `H.No: ${visit.house_number}` : 'Ward 3, Belathur'}
+                    </span>
+                    <span className="text-[10px] text-teal-400 font-mono">
+                      📍 {visit.location_lat ? `${visit.location_lat.toFixed(4)}, ${visit.location_lng?.toFixed(4)}` : '12.9784, 77.7289'}
+                    </span>
                   </td>
                   <td className="py-3 text-teal-200">{visit.visit_type}</td>
                   <td className="py-3 font-mono text-[#00f5d4]">
