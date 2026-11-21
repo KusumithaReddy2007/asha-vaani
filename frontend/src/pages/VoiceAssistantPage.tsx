@@ -37,7 +37,11 @@ export const VoiceAssistantPage: React.FC = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef('');
+  const submittedTranscriptRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   // Conversation & Extraction State
   const [transcript, setTranscript] = useState('');
@@ -82,7 +86,11 @@ export const VoiceAssistantPage: React.FC = () => {
         try {
           const data = JSON.parse(event.data);
 
-          if (data.type === 'record_updated') {
+          if (data.type === 'tts_audio_ready') {
+            playTimbreAudio(data.audio_base64);
+          } else if (data.type === 'tts_fallback') {
+            speakBrowserText(data.text);
+          } else if (data.type === 'record_updated') {
             setRecord(data.record);
             setIsProcessing(false);
 
@@ -144,6 +152,10 @@ export const VoiceAssistantPage: React.FC = () => {
 
   // 2. Real Browser Microphone Access (Web Audio API)
   const startRealMicrophone = async () => {
+    finalTranscriptRef.current = '';
+    submittedTranscriptRef.current = false;
+    setTranscript('');
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -184,20 +196,58 @@ export const VoiceAssistantPage: React.FC = () => {
         else recognition.lang = 'en-IN';
 
         recognition.onresult = (event: any) => {
-          let currentTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
-          }
-          setTranscript(currentTranscript);
+          let finalText = '';
+          let interimText = '';
 
-          // If final speech chunk, send to backend
-          const isFinal = event.results[event.results.length - 1].isFinal;
-          if (isFinal && currentTranscript.trim()) {
-            handleSpeechSubmit(currentTranscript.trim());
+          // Collect the complete recognition results
+          for (let i = 0; i < event.results.length; i++) {
+            const result = event.results[i];
+            const spokenText = result[0].transcript;
+
+            if (result.isFinal) {
+              finalText += spokenText + ' ';
+            } else {
+              interimText += spokenText + ' ';
+            }
           }
+
+          // Keep all final words until recording ends
+          finalTranscriptRef.current = finalText.trim();
+
+          // Show final and currently recognized words
+          setTranscript(
+            [finalText.trim(), interimText.trim()]
+              .filter(Boolean)
+              .join(' ')
+          );
         };
 
         recognition.onerror = (e: any) => console.warn('Recognition event:', e);
+
+        recognition.onend = () => {
+          setIsListening(false);
+          setAudioLevel(0);
+
+          // Clean up microphone resources
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
+          }
+
+          if (audioContextRef.current) {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+          }
+
+          // Submit the complete transcript only once
+          const completeTranscript = finalTranscriptRef.current.trim();
+
+          if (completeTranscript && !submittedTranscriptRef.current) {
+            submittedTranscriptRef.current = true;
+            handleSpeechSubmit(completeTranscript);
+          }
+        };
+
         recognition.start();
       }
 
@@ -230,14 +280,70 @@ export const VoiceAssistantPage: React.FC = () => {
     else startRealMicrophone();
   };
 
-  // 3. Spoken Audio Synthesis (Readback)
-  const speakText = (text: string) => {
+  // 3. Gnani Timbre v3.0 Audio Playback
+  const playTimbreAudio = (audioBase64: string) => {
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+
+      const binary = atob(audioBase64);
+      const bytes = new Uint8Array(binary.length);
+
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: 'audio/wav' });
+      const audioUrl = URL.createObjectURL(blob);
+
+      audioUrlRef.current = audioUrl;
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onplay = () => setIsSpeaking(true);
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+        audioUrlRef.current = null;
+        audioRef.current = null;
+      };
+
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        console.error('Gnani audio playback failed.');
+      };
+
+      audio.play().catch((error) => {
+        setIsSpeaking(false);
+        console.error('Audio playback was blocked:', error);
+      });
+    } catch (error) {
+      setIsSpeaking(false);
+      console.error('Unable to decode Gnani audio:', error);
+    }
+  };
+
+  // Browser speech is used only as a fallback.
+  const speakBrowserText = (text: string) => {
     if (!('speechSynthesis' in window)) return;
+
     window.speechSynthesis.cancel();
+
     const utterance = new SpeechSynthesisUtterance(text);
-    if (language === 'hi') utterance.lang = 'hi-IN';
-    else if (language === 'kn') utterance.lang = 'kn-IN';
-    else utterance.lang = 'en-IN';
+
+    utterance.lang =
+      language === 'hi' ? 'hi-IN' :
+      language === 'kn' ? 'kn-IN' : 'en-IN';
+
     utterance.rate = 1.0;
 
     utterance.onstart = () => setIsSpeaking(true);
@@ -245,6 +351,25 @@ export const VoiceAssistantPage: React.FC = () => {
     utterance.onerror = () => setIsSpeaking(false);
 
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Request speech from Gnani Timbre v3.0.
+  const speakText = (text: string) => {
+    if (!text.trim()) return;
+
+    const languageCode =
+      language === 'hi' ? 'hi-IN' :
+      language === 'kn' ? 'kn-IN' : 'en-IN';
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'request_tts',
+        text,
+        language_code: languageCode,
+      }));
+    } else {
+      speakBrowserText(text);
+    }
   };
 
   // 4. Handle Utterance Submit (Via Mic or Text)

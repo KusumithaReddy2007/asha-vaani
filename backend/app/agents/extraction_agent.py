@@ -108,23 +108,78 @@ class HealthcareExtractionAgent:
                 record.beneficiary_name = name_match.group(2)
 
         # 4. VISIT TYPE EXTRACTION
-        if re.search(r"\b(newborn|baby\s+visit|navjat|shishu)\b", lower):
-            record.visit_type = "Newborn Visit"
-        elif re.search(r"\b(anc|antenatal|prenatal|pregnancy\s+checkup|garbhavastha)\b", lower):
+        # Explicit spoken visit details take priority over beneficiary defaults.
+        if re.search(
+            r"\b(anc|antenatal|prenatal|pregnant|pregnancy\s+checkup|garbhavastha)\b",
+            lower
+        ):
             record.visit_type = "ANC Checkup"
         elif re.search(r"\b(postnatal|pnc|prasav\s+ke\s+baad)\b", lower):
             record.visit_type = "Postnatal Visit"
-        elif re.search(r"\b(vaccination|immunization|teeka|teekakaran)\b", lower):
+        elif re.search(
+            r"\b(newborn|baby\s+visit|baby|infant|navjat|shishu)\b",
+            lower
+        ):
+            record.visit_type = "Newborn Visit"
+        elif re.search(
+            r"\b(vaccination|immunization|teeka|teekakaran)\b",
+            lower
+        ):
             record.visit_type = "Immunization"
 
         # 5. PREGNANCY OR NEWBORN DETAILS
-        baby_match = re.search(r"\b(\d+)\s*(days?|weeks?|months?)\s*(baby|newborn|infant|ke\s+shishu)\b", lower)
-        if baby_match:
-            record.pregnancy_or_newborn_details = f"{baby_match.group(1)} {baby_match.group(2)} baby"
+        number_words = {
+            "one": "1",
+            "two": "2",
+            "three": "3",
+            "four": "4",
+            "five": "5",
+            "six": "6",
+            "seven": "7",
+            "eight": "8",
+            "nine": "9",
+            "ten": "10",
+            "eleven": "11",
+            "twelve": "12",
+        }
 
-        gest_match = re.search(r"\b(\d+)\s*(months?|weeks?)\s*(pregnant|garbhavati)\b", lower)
+        # Convert spoken numbers into digits
+        number_pattern = r"(\d+|" + "|".join(number_words.keys()) + r")"
+
+        baby_match = re.search(
+            rf"\b{number_pattern}\s+(days?|weeks?|months?)\s+(baby|newborn|infant)\b",
+            lower
+        )
+        if baby_match:
+            number = number_words.get(
+                baby_match.group(1), baby_match.group(1)
+            )
+            record.pregnancy_or_newborn_details = (
+                f"{number} {baby_match.group(2)} baby"
+            )
+
+        gest_match = re.search(
+            rf"\b{number_pattern}\s+(months?|weeks?)\s+pregnant\b",
+            lower
+        )
         if gest_match:
-            record.pregnancy_or_newborn_details = f"{gest_match.group(1)} {gest_match.group(2)} pregnant"
+            number = number_words.get(
+                gest_match.group(1), gest_match.group(1)
+            )
+            record.pregnancy_or_newborn_details = (
+                f"{number} {gest_match.group(2)} pregnant"
+            )
+
+        baby_age_match = re.search(
+            r"\b(?:baby|babies|infant|newborn)\s+"
+            r"(?:is\s+)?(\d+)\s+(days?|weeks?|months?)\s+old\b",
+            lower
+        )
+        if baby_age_match:
+            record.pregnancy_or_newborn_details = (
+                f"{baby_age_match.group(1)} "
+                f"{baby_age_match.group(2)} baby"
+            )
 
         # 6. WEIGHT EXTRACTION (with field level correction support)
         # Patterns like: "weight 2.8 kilo", "weight is 2.8 kg", "2.8 kilo", "weight 54 kg"
@@ -139,24 +194,51 @@ class HealthcareExtractionAgent:
                 pass
 
         # 7. VACCINATIONS & MEDICATION STATUS (code-mixed support)
-        # BCG
-        if re.search(r"\bbcg\s+(given|lagaya|de\s*diya|done|kodalagide)\b", lower):
-            record.vaccinations["BCG"] = "Given"
-        elif re.search(r"\bbcg\s+(not\s+given|nahi\s+lagaya|baki|due|pending)\b", lower):
+        # BCG vaccination - check negative status FIRST
+        if re.search(
+            r"\bbcg\b.{0,40}\b(not given|not administered|due|pending|missed)\b",
+            lower
+        ):
             record.vaccinations["BCG"] = "Not Given"
+        elif re.search(
+            r"\bbcg\b.{0,60}\b(given|administered|done)\b",
+            lower
+        ):
+            record.vaccinations["BCG"] = "Given"
 
-        # IFA (Iron Folic Acid)
-        if re.search(r"\b(ifa|iron)\s*(goli|tablets?|medicine)?\s*(given|diya|done|kodalagide)\b", lower):
-            record.vaccinations["IFA Tablets"] = "Given (100 tablets issued)"
-        elif re.search(r"\b(ifa|iron)\s*(not\s+given|nahi\s+diya)\b", lower):
-            record.vaccinations["IFA Tablets"] = "Not Given"
+        # IFA (Iron Folic Acid) - handle speech recognition variations
+        ifa_terms = r"(?:ifa|i\s*f\s*a|if\s+a|iron\s+folic\s+acid)"
+        ifa_given = re.search(
+            rf"\b(?:gave|give|given|administered|issued|provided|distributed)"
+            rf"\b.{{0,60}}\b{ifa_terms}\b"
+            rf"|\b{ifa_terms}\b.{{0,40}}\b"
+            rf"(?:given|administered|issued|provided|distributed)\b",
+            lower
+        )
+        ifa_due = re.search(
+            rf"\b{ifa_terms}\b.{{0,40}}\b"
+            rf"(?:due|pending|not given|missed)\b",
+            lower
+        )
+        if ifa_given:
+            record.vaccinations["IFA Tablets"] = "Given"
+        elif ifa_due:
+            record.vaccinations["IFA Tablets"] = "Due"
 
         # OPV / Polio
         if re.search(r"\b(opv|polio)\s*(given|pilaya|done|drops)\b", lower):
             record.vaccinations["OPV-0"] = "Given"
 
         # TT / Td
-        if re.search(r"\b(tt|td)\s*(injection|given|lagaya)\b", lower):
+        if re.search(
+            r"\b(tt|td)\b.{0,30}\b(due|pending|reminded|reminder|not given)\b",
+            lower
+        ):
+            record.vaccinations["Td-1"] = "Due"
+        elif re.search(
+            r"\b(tt|td)\b.{0,30}\b(given|administered|injected|done|lagaya)\b",
+            lower
+        ):
             record.vaccinations["Td-1"] = "Given"
 
         # Pentavalent / Hepatitis B
@@ -169,27 +251,40 @@ class HealthcareExtractionAgent:
         if "normal" in lower and "bp" in lower:
             if "BP Normal (120/80)" not in record.health_observations:
                 record.health_observations.append("BP Normal (120/80)")
-        if "feeding well" in lower or "dudh pi raha hai" in lower:
+        if (
+            "feeding well" in lower
+            or "speeding well" in lower
+            or "dudh pi raha hai" in lower
+        ):
             if "Feeding well, active" not in record.health_observations:
                 record.health_observations.append("Feeding well, active")
 
         # 9. NEXT VISIT DATE EXTRACTION
-        # Handles "next visit 20 November", "next visit is 22 November", "next visit 2026-11-20"
         date_match = re.search(
-            r"\b(?:next\s+visit|agla\s+visit|mundina\s+bheti)\s*(?:is|on)?\s*(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)(?:\s+(\d{4}))?\b",
+            r"\b(?:next\s+visit|agla\s+visit|mundina\s+bheti)"
+            r"\s*(?:(?:is|on)\s*){0,2}"
+            r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)"
+            r"(?:\s+(\d{4}))?\b",
             lower
         )
+        month_map = {
+            "january": 1, "jan": 1,
+            "february": 2, "feb": 2,
+            "march": 3, "mar": 3,
+            "april": 4, "apr": 4,
+            "may": 5,
+            "june": 6, "jun": 6,
+            "july": 7, "jul": 7,
+            "august": 8, "aug": 8,
+            "september": 9, "sep": 9,
+            "october": 10, "oct": 10,
+            "november": 11, "nov": 11,
+            "december": 12, "dec": 12
+        }
         if date_match:
             day = int(date_match.group(1))
-            month_str = date_match.group(2).capitalize()
+            month_str = date_match.group(2).lower()
             year = int(date_match.group(3)) if date_match.group(3) else 2026
-            
-            month_map = {
-                "January": 1, "Jan": 1, "February": 2, "Feb": 2, "March": 3, "Mar": 3,
-                "April": 4, "Apr": 4, "May": 5, "June": 6, "Jun": 6, "July": 7, "Jul": 7,
-                "August": 8, "Aug": 8, "September": 9, "Sep": 9, "October": 10, "Oct": 10,
-                "November": 11, "Nov": 11, "December": 12, "Dec": 12
-            }
             if month_str in month_map:
                 month_num = month_map[month_str]
                 record.next_visit_date = f"{year:04d}-{month_num:02d}-{day:02d}"
@@ -211,6 +306,10 @@ class HealthcareExtractionAgent:
         name = record.beneficiary_name or "the beneficiary"
         v_type = record.visit_type or "visit"
         weight_str = f"Weight is {record.weight_kg} kilograms." if record.weight_kg else ""
+        pregnancy_str = (
+            f"Pregnancy details: {record.pregnancy_or_newborn_details}."
+            if record.pregnancy_or_newborn_details else ""
+        )
         
         vax_list = [f"{k} {v.lower()}" for k, v in record.vaccinations.items()]
         vax_str = f"{', '.join(vax_list)}." if vax_list else ""
@@ -227,6 +326,6 @@ class HealthcareExtractionAgent:
         elif language.startswith("kn"):
             return f"ನಾನು {name} ಅವರ {v_type} ವಿವರಗಳನ್ನು ದಾಖಲಿಸಿದ್ದೇನೆ. {weight_str} {vax_str} {next_visit} {danger_warning} ಇದು ಸರಿಯಾಗಿದೆಯೇ? ದಯವಿಟ್ಟು ಖಚಿತಪಡಿಸಿ."
         else:
-            return f"I have recorded {name}'s {v_type}. {weight_str} {vax_str} {next_visit} {danger_warning} Is this correct? Say 'Yes, save it' to confirm."
+            return f"I have recorded {name}'s {v_type}. {pregnancy_str} {weight_str} {vax_str} {next_visit} {danger_warning} Is this correct? Say 'Yes, save it' to confirm."
 
 extraction_agent = HealthcareExtractionAgent()
