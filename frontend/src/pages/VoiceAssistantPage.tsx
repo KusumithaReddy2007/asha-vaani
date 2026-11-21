@@ -8,19 +8,14 @@ import {
   MicOff,
   RotateCcw,
   Volume2,
-  VolumeX,
   CheckCircle2,
   AlertOctagon,
   Sparkles,
-  ArrowRight,
-  ShieldAlert,
   Send,
   Languages,
   Radio,
   FileCheck,
   Check,
-  X,
-  Edit3
 } from 'lucide-react';
 
 export const VoiceAssistantPage: React.FC = () => {
@@ -71,7 +66,7 @@ export const VoiceAssistantPage: React.FC = () => {
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/voice`;
-    
+
     let ws: WebSocket;
     try {
       ws = new WebSocket(wsUrl);
@@ -414,7 +409,7 @@ export const VoiceAssistantPage: React.FC = () => {
     setIsProcessing(true);
     try {
       await api.saveConfirmedVisit({
-        beneficiary_id_str: record.beneficiary_id || record.beneficiary_name || 'SYN-001',
+        beneficiary_id_str: record.beneficiary_id || '',
         visit_type: record.visit_type || 'Household Visit',
         weight_kg: record.weight_kg,
         vaccinations_given: record.vaccinations,
@@ -776,7 +771,9 @@ export const VoiceAssistantPage: React.FC = () => {
                 <span className="text-slate-400">Beneficiary:</span>
                 <span className="font-bold text-white font-mono">
                   {record.beneficiary_name ? (
-                    `${record.beneficiary_name} (${record.beneficiary_id || 'SYN-001'})`
+                    record.beneficiary_id
+                      ? `${record.beneficiary_name} (${record.beneficiary_id})`
+                      : record.beneficiary_name
                   ) : (
                     <span className="text-slate-500 italic">Listening for name...</span>
                   )}
@@ -821,6 +818,33 @@ export const VoiceAssistantPage: React.FC = () => {
                   </div>
                 ) : (
                   <span className="text-slate-500 italic text-xs">No vaccinations logged in this session</span>
+                )}
+              </div>
+
+              {/* Health Observations */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-400">Health Observations:</span>
+                  <span className="text-[10px] text-teal-400 font-mono">
+                    {record.health_observations.length} recorded
+                  </span>
+                </div>
+
+                {record.health_observations.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {record.health_observations.map((observation, index) => (
+                      <span
+                        key={`${observation}-${index}`}
+                        className="px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-200 text-[11px] border border-blue-500/30"
+                      >
+                        {observation}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-slate-500 italic text-xs">
+                    No health observations recorded
+                  </span>
                 )}
               </div>
 

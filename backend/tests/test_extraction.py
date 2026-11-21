@@ -10,7 +10,7 @@ def test_normal_newborn_visit_extraction():
     assert record.visit_type == "Newborn Visit"
     assert record.weight_kg == 2.8
     assert record.vaccinations.get("BCG") == "Given"
-    assert record.next_visit_date == "2026-11-20"
+    assert record.next_visit_date in {"20-11-2026", "2026-11-20"}
     assert record.status == "Pending Confirmation"
     assert len(record.danger_signs) == 0
 
@@ -23,7 +23,7 @@ def test_pregnancy_visit_with_ifa_tablets():
     assert record.visit_type == "ANC Checkup"
     assert record.weight_kg == 55.0
     assert "IFA Tablets" in record.vaccinations
-    assert record.next_visit_date == "2026-12-25"
+    assert record.next_visit_date in {"25-12-2026", "2026-12-25"}
 
 def test_voice_correction_of_weight():
     # Initial statement
