@@ -67,6 +67,9 @@ export const VoiceAssistantPage: React.FC = () => {
 
   // Live Location & House Number State
   const [houseNumber, setHouseNumber] = useState('');
+  const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState('Location not captured');
+
   const [liveLocation, setLiveLocation] = useState<{
     lat: number;
     lng: number;
@@ -101,6 +104,8 @@ export const VoiceAssistantPage: React.FC = () => {
           address: `Bengaluru (${lat}°, ${lng}°)`,
           isLive: true,
         });
+        setGpsLocation({ latitude: lat, longitude: lng });
+        setGpsStatus('Live GPS captured');
         setIsCapturingLocation(false);
       },
       (err) => {
@@ -468,15 +473,17 @@ export const VoiceAssistantPage: React.FC = () => {
         beneficiary_id_str: record.beneficiary_id || '',
         visit_type: record.visit_type || 'Household Visit',
         weight_kg: record.weight_kg,
+        house_number: houseNumber.trim(),
+        location_lat: gpsLocation?.latitude ?? null,
+        location_lng: gpsLocation?.longitude ?? null,
+        location_address: gpsLocation
+          ? `${gpsLocation.latitude.toFixed(6)}, ${gpsLocation.longitude.toFixed(6)}`
+          : '',
         vaccinations_given: record.vaccinations,
         health_observations: record.health_observations.join(', '),
         next_visit_date: record.next_visit_date,
         danger_signs_detected: record.danger_signs,
         referral_made: record.danger_signs.length > 0,
-        house_number: houseNumber.trim() || record.house_number || undefined,
-        location_lat: liveLocation.lat,
-        location_lng: liveLocation.lng,
-        location_address: liveLocation.address,
         transcript_snippet: record.raw_transcript,
       });
 
