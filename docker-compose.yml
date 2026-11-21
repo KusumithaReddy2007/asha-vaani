@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: asha_vaani_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - GNANI_API_KEY=${GNANI_API_KEY}
+      - GNANI_STT_MODEL=Prisma-v3.0
+      - GNANI_TTS_MODEL=Timbre-v3.0
+      - DATABASE_URL=sqlite:///./asha_vaani.db
+    volumes:
+      - ./backend/asha_vaani.db:/app/asha_vaani.db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: asha_vaani_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

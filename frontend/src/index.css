@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #041410;
+    --bg-surface: #07221b;
+    --bg-card: rgba(10, 42, 34, 0.7);
+    --border-glass: rgba(45, 212, 191, 0.15);
+    --border-accent: rgba(0, 245, 212, 0.3);
+    --primary-neon: #00f5d4;
+    --primary-teal: #14b8a6;
+    --accent-glow: rgba(0, 245, 212, 0.25);
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #031410;
+    color: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(8, 36, 29, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(45, 212, 191, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-panel-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(12, 48, 39, 0.8);
+  border-color: rgba(0, 245, 212, 0.35);
+  box-shadow: 0 12px 40px 0 rgba(0, 245, 212, 0.15);
+  transform: translateY(-2px);
+}
+
+.glass-button-neon {
+  background: linear-gradient(135deg, #00f5d4 0%, #0d9488 100%);
+  color: #031c15;
+  font-weight: 600;
+  box-shadow: 0 0 20px rgba(0, 245, 212, 0.4);
+  transition: all 0.2s ease;
+}
+
+.glass-button-neon:hover {
+  box-shadow: 0 0 30px rgba(0, 245, 212, 0.7);
+  transform: scale(1.02);
+}
+
+.glass-pill {
+  background: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  backdrop-filter: blur(8px);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #02120e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0f483c;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #14b8a6;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 245, 212, 0.3), inset 0 0 15px rgba(0, 245, 212, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(0, 245, 212, 0.6), inset 0 0 25px rgba(0, 245, 212, 0.4);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+@keyframes dangerPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(239, 68, 68, 0.9);
+    border-color: rgba(239, 68, 68, 1);
+  }
+}
+
+.animate-danger-pulse {
+  animation: dangerPulse 1.8s infinite ease-in-out;
+}
