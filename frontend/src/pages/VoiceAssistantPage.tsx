@@ -122,8 +122,7 @@ export const VoiceAssistantPage: React.FC = () => {
 
   // 1. Initialize WebSocket Connection
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/voice`;
+    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/voice`;
 
     let ws: WebSocket;
     try {
