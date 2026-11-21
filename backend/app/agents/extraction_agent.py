@@ -9,7 +9,7 @@ from app.rules.danger_signs import danger_engine
 class ExtractedHealthcareRecord(BaseModel):
     beneficiary_id: Optional[str] = None
     beneficiary_name: Optional[str] = None
-    registry_status: str = "VERIFIED" # "VERIFIED", "NOT_FOUND", "CORRECTED", "UNKNOWN"
+    registry_status: str = "VERIFIED"  # "VERIFIED", "NOT_FOUND", "CORRECTED", "UNKNOWN"
     visit_type: Optional[str] = None
     pregnancy_or_newborn_details: Optional[str] = None
     weight_kg: Optional[float] = None
